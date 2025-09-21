@@ -7,6 +7,7 @@ import json
 from typing import Dict, Any, List
 
 from pydantic import BaseModel
+from openai.types.responses import ResponseTextDeltaEvent
 
 from agents import (
     Agent,
@@ -26,7 +27,6 @@ from agents import (
     set_tracing_disabled,
     AsyncOpenAI
 )
-from openai.types.responses import ResponseTextDeltaEvent
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
 from dotenv import load_dotenv
 import os
@@ -448,7 +448,6 @@ async def process_streaming_response(streaming_result, previous_agent_name=None)
 
     print("🔄 Processing agent response...")
 
-    # Process all streaming events
     async for event in streaming_result.stream_events():
         # Handle raw response events for real-time text streaming
         if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
@@ -494,8 +493,6 @@ async def process_streaming_response(streaming_result, previous_agent_name=None)
     if current_message:
         print(f"\n🤖 {current_agent_name or 'Agent'}: {current_message}")
 
-    # After processing all events, the streaming result contains the final result
-    # The RunResultStreaming object itself contains the final result after streaming completes
     return streaming_result
 
 
@@ -503,15 +500,15 @@ async def process_streaming_response(streaming_result, previous_agent_name=None)
 
 async def main():
     """
-    Main educational application loop
+    Main educational application with streaming support
     """
-    print("🎓 Welcome to YourTeacher - AI-Powered Personalized Learning System ⚡ Streaming")
+    print("🎓 Welcome to YourTeacher - AI-Powered Personalized Learning System (Streaming)")
     print("=" * 80)
     print("This system will:")
     print("1. 📋 Assess your learning profile and cognitive abilities")
     print("2. 👨‍🏫 Provide personalized teaching based on your profile")
     print("3. 📝 Test your understanding with customized quizzes")
-    print("4. ⚡ Stream responses in real-time for better experience")
+    print("4. 🔄 Stream responses in real-time for better experience")
     print("=" * 80)
 
     # Initialize the system
@@ -534,19 +531,19 @@ async def main():
     while True:
         try:
             with trace("Educational System Streaming", group_id=conversation_id):
+                # Use streaming runner instead of regular runner
+                result = Runner.run_streamed(
+                    current_agent, input_items, context=context)
+
                 # Track previous agent name for handoff detection
                 previous_agent_name = current_agent.name
 
-                # Use streaming runner instead of regular runner
-                streaming_result = Runner.run_streamed(
-                    current_agent, input_items, context=context)
+                # Process streaming response
+                final_result = await process_streaming_response(result, previous_agent_name)
 
-                # Process streaming response (this consumes the stream)
-                processed_result = await process_streaming_response(streaming_result, previous_agent_name)
-
-                # Update for next iteration - access the final result from the streaming object
-                input_items = processed_result.to_input_list()
-                current_agent = processed_result.last_agent
+                # Update for next iteration
+                input_items = final_result.to_input_list()
+                current_agent = final_result.last_agent
 
                 # Get user input
                 print(f"\n📝 Your response to {current_agent.name}:")
