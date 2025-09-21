@@ -18,6 +18,7 @@ from main import (
     ToolCallOutputItem,
     ItemHelpers
 )
+from openai.types.responses import ResponseTextDeltaEvent
 
 # Page configuration
 st.set_page_config(
@@ -301,8 +302,8 @@ def display_progress_tracker():
             st.warning("⏳ **Waiting for Teaching**")
 
 
-async def process_agent_interaction(user_input):
-    """Process interaction with the current agent"""
+async def process_agent_interaction_streaming(user_input, progress_placeholder, message_placeholder):
+    """Process interaction with the current agent using streaming"""
     try:
         # Add user input to conversation
         if user_input:
@@ -318,7 +319,140 @@ async def process_agent_interaction(user_input):
                 "timestamp": datetime.now()
             })
 
-        # Run the agent
+        # Use streaming runner
+        result = Runner.run_streamed(
+            st.session_state.current_agent,
+            st.session_state.input_items,
+            context=st.session_state.context
+        )
+
+        # Process streaming events
+        current_message = ""
+        current_agent_name = ""
+
+        progress_placeholder.info("🔄 Agent is processing your request...")
+
+        async for event in result.stream_events():
+            # Handle raw response events for real-time text streaming
+            if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
+                if event.data.delta:
+                    current_message += event.data.delta
+                    # Update the message placeholder with current content
+                    if current_message.strip():
+                        agent_info = get_agent_info(
+                            st.session_state.current_agent)
+                        message_placeholder.markdown(f"""
+                        <div class="chat-message agent-message">
+                            <strong>{agent_info['icon']} {current_agent_name or st.session_state.current_agent.name}:</strong><br>
+                            {current_message}
+                        </div>
+                        """, unsafe_allow_html=True)
+
+            # Handle agent updates - only show if agent actually changed
+            elif event.type == "agent_updated_stream_event":
+                new_agent_name = event.new_agent.name
+                current_agent_name_before = st.session_state.current_agent.name
+                # Only show handoff if agent actually changed
+                if current_agent_name_before != new_agent_name:
+                    st.session_state.conversation_history.append({
+                        "type": "handoff",
+                        "source": current_agent_name_before,
+                        "target": new_agent_name,
+                        "timestamp": datetime.now()
+                    })
+                    progress_placeholder.success(
+                        f"🔄 Agent Handoff: {current_agent_name_before} → {new_agent_name}")
+                current_agent_name = new_agent_name
+
+            # Handle run item events for structured updates
+            elif event.type == "run_item_stream_event":
+                agent_info = get_agent_info(event.item.agent)
+
+                if event.item.type == "tool_call_item":
+                    st.session_state.conversation_history.append({
+                        "type": "tool_call",
+                        "agent_name": event.item.agent.name,
+                        "timestamp": datetime.now(),
+                        "icon": agent_info["icon"]
+                    })
+                    progress_placeholder.info(
+                        f"🔧 {event.item.agent.name}: Using a tool...")
+
+                elif event.item.type == "tool_call_output_item":
+                    st.session_state.conversation_history.append({
+                        "type": "tool_result",
+                        "content": event.item.output,
+                        "timestamp": datetime.now()
+                    })
+                    progress_placeholder.success(
+                        f"✅ Tool completed successfully")
+
+                elif event.item.type == "message_output_item":
+                    if current_message:
+                        # Use the streamed message
+                        final_message = current_message
+                    else:
+                        # Fallback to item message
+                        final_message = ItemHelpers.text_message_output(
+                            event.item)
+
+                    st.session_state.conversation_history.append({
+                        "type": "agent",
+                        "agent_name": event.item.agent.name,
+                        "content": final_message,
+                        "timestamp": datetime.now(),
+                        "icon": agent_info["icon"]
+                    })
+
+                elif event.item.type == "handoff_output_item":
+                    # Only show handoff if agents are actually different
+                    source_name = event.item.source_agent.name
+                    target_name = event.item.target_agent.name
+                    if source_name != target_name:
+                        st.session_state.conversation_history.append({
+                            "type": "handoff",
+                            "source": source_name,
+                            "target": target_name,
+                            "timestamp": datetime.now()
+                        })
+
+        # Get the final result - the streaming result object contains the final result after streaming
+        final_result = result
+
+        # Update for next iteration
+        st.session_state.input_items = final_result.to_input_list()
+        st.session_state.current_agent = final_result.last_agent
+
+        # Clear progress indicators
+        progress_placeholder.empty()
+        message_placeholder.empty()
+
+        return True
+
+    except Exception as e:
+        progress_placeholder.error(f"❌ An error occurred: {str(e)}")
+        message_placeholder.empty()
+        return False
+
+
+async def process_agent_interaction(user_input):
+    """Fallback non-streaming function for compatibility"""
+    try:
+        # Add user input to conversation
+        if user_input:
+            st.session_state.input_items.append({
+                "content": user_input,
+                "role": "user"
+            })
+
+            # Add to conversation history
+            st.session_state.conversation_history.append({
+                "type": "user",
+                "content": user_input,
+                "timestamp": datetime.now()
+            })
+
+        # Run the agent (non-streaming fallback)
         result = await Runner.run(
             st.session_state.current_agent,
             st.session_state.input_items,
@@ -452,7 +586,7 @@ def main():
     init_session_state()
 
     # Main header
-    st.markdown('<h1 class="main-header">🎓 YourTeacher - AI Learning System</h1>',
+    st.markdown('<h1 class="main-header">🎓 YourTeacher - AI Learning System ⚡ Streaming</h1>',
                 unsafe_allow_html=True)
 
     # Sidebar with system information
@@ -518,7 +652,24 @@ def main():
 
         # Process input
         if submit_button and user_input.strip():
-            with st.spinner("🤖 Agent is processing..."):
+            # Create placeholders for streaming updates
+            progress_placeholder = st.empty()
+            message_placeholder = st.empty()
+
+            # Use streaming processing
+            try:
+                success = asyncio.run(
+                    process_agent_interaction_streaming(
+                        user_input.strip(),
+                        progress_placeholder,
+                        message_placeholder
+                    ))
+                if success:
+                    st.rerun()
+            except Exception as e:
+                st.error(
+                    f"Streaming failed, falling back to standard processing: {str(e)}")
+                # Fallback to non-streaming
                 success = asyncio.run(
                     process_agent_interaction(user_input.strip()))
                 if success:
