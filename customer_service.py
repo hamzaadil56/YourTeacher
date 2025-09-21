@@ -19,10 +19,29 @@ from agents import (
     function_tool,
     handoff,
     trace,
+    set_default_openai_api,
+    set_default_openai_client,
+    set_tracing_disabled,
+    AsyncOpenAI
+
 )
 from agents.extensions.handoff_prompt import RECOMMENDED_PROMPT_PREFIX
+from dotenv import load_dotenv
+import os
 
-### CONTEXT
+load_dotenv()
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+set_tracing_disabled(True)
+set_default_openai_api("chat_completions")
+
+external_client = AsyncOpenAI(
+    api_key=gemini_api_key,
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+)
+set_default_openai_client(external_client)
+
+
+# CONTEXT
 
 
 class AirlineAgentContext(BaseModel):
@@ -32,7 +51,7 @@ class AirlineAgentContext(BaseModel):
     flight_number: str | None = None
 
 
-### TOOLS
+# TOOLS
 
 
 @function_tool(
@@ -82,7 +101,7 @@ async def update_seat(
     return f"Updated seat to {new_seat} for confirmation number {confirmation_number}"
 
 
-### HOOKS
+# HOOKS
 
 
 async def on_seat_booking_handoff(context: RunContextWrapper[AirlineAgentContext]) -> None:
@@ -90,7 +109,7 @@ async def on_seat_booking_handoff(context: RunContextWrapper[AirlineAgentContext
     context.context.flight_number = flight_number
 
 
-### AGENTS
+# AGENTS
 
 faq_agent = Agent[AirlineAgentContext](
     name="FAQ Agent",
@@ -103,6 +122,7 @@ faq_agent = Agent[AirlineAgentContext](
     2. Use the faq lookup tool to answer the question. Do not rely on your own knowledge.
     3. If you cannot answer the question, transfer back to the triage agent.""",
     tools=[faq_lookup_tool],
+    model="gemini-2.0-flash",
 )
 
 seat_booking_agent = Agent[AirlineAgentContext](
@@ -117,6 +137,7 @@ seat_booking_agent = Agent[AirlineAgentContext](
     3. Use the update seat tool to update the seat on the flight.
     If the customer asks a question that is not related to the routine, transfer back to the triage agent. """,
     tools=[update_seat],
+    model="gemini-2.0-flash",
 )
 
 triage_agent = Agent[AirlineAgentContext](
@@ -126,6 +147,7 @@ triage_agent = Agent[AirlineAgentContext](
         f"{RECOMMENDED_PROMPT_PREFIX} "
         "You are a helpful triaging agent. You can use your tools to delegate questions to other appropriate agents."
     ),
+    model="gemini-2.0-flash",
     handoffs=[
         faq_agent,
         handoff(agent=seat_booking_agent, on_handoff=on_seat_booking_handoff),
@@ -136,7 +158,7 @@ faq_agent.handoffs.append(triage_agent)
 seat_booking_agent.handoffs.append(triage_agent)
 
 
-### RUN
+# RUN
 
 
 async def main():
@@ -157,7 +179,8 @@ async def main():
             for new_item in result.new_items:
                 agent_name = new_item.agent.name
                 if isinstance(new_item, MessageOutputItem):
-                    print(f"{agent_name}: {ItemHelpers.text_message_output(new_item)}")
+                    print(
+                        f"{agent_name}: {ItemHelpers.text_message_output(new_item)}")
                 elif isinstance(new_item, HandoffOutputItem):
                     print(
                         f"Handed off from {new_item.source_agent.name} to {new_item.target_agent.name}"
@@ -167,7 +190,8 @@ async def main():
                 elif isinstance(new_item, ToolCallOutputItem):
                     print(f"{agent_name}: Tool call output: {new_item.output}")
                 else:
-                    print(f"{agent_name}: Skipping item: {new_item.__class__.__name__}")
+                    print(
+                        f"{agent_name}: Skipping item: {new_item.__class__.__name__}")
             input_items = result.to_input_list()
             current_agent = result.last_agent
 
