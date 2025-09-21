@@ -3,7 +3,11 @@ from your_teacher_agents import educational_system
 import asyncio
 
 # Configure OpenAI client
-gemini_api_key = "AIzaSyAnL1jqcxeQzM5tRaE4GCKhStSdVkWlarY"
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+gemini_api_key = os.getenv("GEMINI_API_KEY")
 set_tracing_disabled(True)
 set_default_openai_api("chat_completions")
 

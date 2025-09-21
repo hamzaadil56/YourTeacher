@@ -1,5 +1,8 @@
 
+from dotenv import load_dotenv
+import os
 from agents import Agent, AsyncOpenAI, set_default_openai_client, set_tracing_disabled, set_default_openai_api, Runner
+from main import gemini_api_key
 from your_teacher_agents import educational_system
 import asyncio
 from pydantic import BaseModel
@@ -17,7 +20,9 @@ class AcademicQualification(BaseModel):
 
 
 # Configure OpenAI client
-gemini_api_key = "AIzaSyAnL1jqcxeQzM5tRaE4GCKhStSdVkWlarY"
+
+load_dotenv()
+gemini_api_key = os.getenv("GEMINI_API_KEY")
 set_tracing_disabled(True)
 set_default_openai_api("chat_completions")
 
