@@ -9,3 +9,8 @@ wheels/
 # Virtual environments
 .venv
 .env
+venv
+
+./frontend/node_modules
+./backend/venv
+./backend/venv/installed.txt
