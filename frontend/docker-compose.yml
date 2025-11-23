@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=${API_URL:-http://localhost:8000/api}
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - yourteacher-network
+
+networks:
+  yourteacher-network:
+    external: true
+
