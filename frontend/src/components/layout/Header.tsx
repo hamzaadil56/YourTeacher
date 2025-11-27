@@ -58,3 +58,4 @@ export function Header({ currentPhase, onReset, isLoading }: HeaderProps) {
   );
 }
 
+

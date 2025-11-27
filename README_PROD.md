@@ -57,3 +57,4 @@ npm run dev
 - **Session Persistence**: State maintained across reloads (Session ID in localStorage).
 - **Clean UI**: Modern interface with Tailwind CSS and Framer Motion.
 
+
