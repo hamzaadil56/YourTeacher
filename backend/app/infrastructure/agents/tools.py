@@ -4,6 +4,7 @@ from app.domain.entities.student_context import StudentLearningContext
 
 # TOOLS FOR SCREENING AGENT
 
+
 @function_tool(
     name_override="cognitive_assessment_tool",
     description_override="Conduct cognitive ability assessment for students"
@@ -206,7 +207,8 @@ async def calculate_quiz_score(
     total_questions = len(results)
     correct_answers = sum(1 for result in results if result["is_correct"])
 
-    score_percentage = (correct_answers / total_questions) * 100 if total_questions > 0 else 0
+    score_percentage = (correct_answers / total_questions) * \
+        100 if total_questions > 0 else 0
 
     context.context.quiz_score = correct_answers
     context.context.quiz_total = total_questions
@@ -219,4 +221,3 @@ async def calculate_quiz_score(
         understanding = "Concept needs reinforcement. Consider reviewing the material."
 
     return f"Quiz completed: {correct_answers}/{total_questions} ({score_percentage:.1f}%). {understanding}"
-

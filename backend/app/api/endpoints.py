@@ -8,9 +8,11 @@ from app.use_cases.chat import chat_stream
 
 router = APIRouter()
 
+
 class ChatRequest(BaseModel):
     message: str
     session_id: str
+
 
 @router.post("/chat/stream")
 async def stream_chat(
@@ -22,6 +24,7 @@ async def stream_chat(
         media_type="text/event-stream"
     )
 
+
 @router.get("/session/{session_id}")
 async def get_session_info(
     session_id: str,
@@ -31,6 +34,7 @@ async def get_session_info(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session.context
+
 
 @router.delete("/session/{session_id}")
 async def reset_session(
@@ -42,4 +46,3 @@ async def reset_session(
     if hasattr(repo, '_sessions') and session_id in repo._sessions:
         del repo._sessions[session_id]
     return {"status": "reset"}
-

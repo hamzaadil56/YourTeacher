@@ -10,10 +10,12 @@ from app.core.config import settings
 
 # Configure OpenAI Client (Gemini)
 # This should ideally be called once at startup
+
+
 def setup_agents_client():
     set_tracing_disabled(True)
     set_default_openai_api("chat_completions")
-    
+
     external_client = AsyncOpenAI(
         api_key=settings.GEMINI_API_KEY,
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -22,18 +24,21 @@ def setup_agents_client():
 
 # HANDOFF HOOKS
 
+
 async def on_teaching_handoff(context: RunContextWrapper[StudentLearningContext]) -> None:
     """Hook called when handing off to teaching agent"""
     if not context.context.screening_complete:
         # In a real app, we might want to handle this gracefully, but for now raising error is fine
         # The agent should be instructed not to handoff prematurely
-        pass # raise ValueError("Student screening must be completed before teaching")
+        # raise ValueError("Student screening must be completed before teaching")
+        pass
 
 
 async def on_quiz_handoff(context: RunContextWrapper[StudentLearningContext]) -> None:
     """Hook called when handing off to quiz agent"""
     if not context.context.concept_taught:
-        pass # raise ValueError("A concept must be taught before taking a quiz")
+        # raise ValueError("A concept must be taught before taking a quiz")
+        pass
 
 
 # AGENTS
@@ -128,6 +133,7 @@ quiz_agent.handoffs = [
     screener_agent   # Go back to screener if profile needs updating
 ]
 
+
 def get_agent_by_name(name: str):
     if name == "Student Screener Agent":
         return screener_agent
@@ -135,5 +141,4 @@ def get_agent_by_name(name: str):
         return teaching_agent
     elif name == "Quiz Agent":
         return quiz_agent
-    return screener_agent # Default
-
+    return screener_agent  # Default

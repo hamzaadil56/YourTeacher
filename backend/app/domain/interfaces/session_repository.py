@@ -3,11 +3,13 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 from app.domain.entities.student_context import StudentLearningContext
 
+
 class SessionData(BaseModel):
     session_id: str
     context: StudentLearningContext
-    history: List[Dict[str, Any]] # List of message dicts
+    history: List[Dict[str, Any]]  # List of message dicts
     current_agent_name: str
+
 
 class ISessionRepository(ABC):
     @abstractmethod
